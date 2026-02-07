@@ -165,12 +165,14 @@ impl Device {
 
         #[cfg(not(target_arch = "wasm32"))]
         std::thread::spawn({
-            let device = device.clone();
+            let weak_inner = Arc::downgrade(&device.inner);
             move || loop {
-                let Ok(status) = device
-                    .wgpu_device()
-                    .poll(wgpu::PollType::wait_indefinitely())
-                else {
+                let Some(inner) = weak_inner.upgrade() else {
+                    break;
+                };
+                let result = inner.device.poll(wgpu::PollType::wait_indefinitely());
+                drop(inner);
+                let Ok(status) = result else {
                     break;
                 };
                 if status == wgpu::PollStatus::QueueEmpty {
